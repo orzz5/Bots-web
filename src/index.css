@@ -416,7 +416,6 @@ body, html {
   border: 1px solid transparent;
   cursor: text;
   height: 26px;
-  overflow: hidden;
 }
 
 .command-option-pill.focused {

@@ -11,7 +11,7 @@ function Tooltip({ children, text }) {
 }
 
 export default function App() {
-  const [activeServer, setActiveServer] = useState('bot'); // 'home' or 'bot'
+  const [activeServer, setActiveServer] = useState('info'); // Start at info page
   const [messages, setMessages] = useState([
     {
       id: 1,
@@ -145,6 +145,21 @@ export default function App() {
       const timezone = args.timezone || 'UTC';
       const ping = args.ping || 'true';
       
+      let targetDate = new Date();
+      try {
+        const timeParts = time.match(/(\d+)(?::(\d+))?\s*(am|pm)?/i);
+        if (timeParts) {
+          let hours = parseInt(timeParts[1]);
+          const mins = parseInt(timeParts[2]) || 0;
+          const ampm = timeParts[3]?.toLowerCase();
+          if (ampm === 'pm' && hours < 12) hours += 12;
+          if (ampm === 'am' && hours === 12) hours = 0;
+          targetDate.setHours(hours, mins, 0, 0);
+          if (targetDate < new Date()) targetDate.setDate(targetDate.getDate() + 1); // Next day if time passed
+        }
+      } catch (e) {}
+      const timestampSeconds = Math.floor(targetDate.getTime() / 1000);
+      
       const newReminder = { id: Date.now().toString().slice(-4), name, time, day, timezone, ping: ping === 'true' };
       setReminders(prev => [...prev, newReminder]);
       setStats(prev => ({ ...prev, total: prev.total + 1 }));
@@ -161,7 +176,7 @@ export default function App() {
             { name: '⏰ Time', value: `${time} (${timezone})`, inline: true },
             { name: '📅 Day', value: day, inline: true },
             { name: '🔔 Ping', value: ping === 'true' ? 'Yes' : 'No', inline: true },
-            { name: '🕰️ Reminder Time', value: `<t:${Math.floor(Date.now() / 1000) + 3600}:F>`, inline: false }
+            { name: '🕰️ Reminder Time', value: `<t:${timestampSeconds}:F>`, inline: false }
           ],
           footer: `Reminder ID: ${newReminder.id}`
         }
@@ -378,6 +393,7 @@ export default function App() {
     setActiveCommand(null);
     setCommandOptions({});
     setFocusedOption(null);
+    setInputValue(''); // Fixed: Clear input value so it doesn't stay stuck
   };
 
   const handleOptionKeyDown = (e, optName) => {
@@ -621,7 +637,7 @@ export default function App() {
                           onFocus={() => setFocusedOption(opt.name)}
                           onKeyDown={(e) => handleOptionKeyDown(e, opt.name)}
                           autoFocus={focusedOption === opt.name}
-                          style={{ width: commandOptions[opt.name] ? `${Math.max(commandOptions[opt.name].length * 8, 10)}px` : '10px' }}
+                          style={{ width: commandOptions[opt.name] ? `${Math.max(commandOptions[opt.name].length, 2)}ch` : '2ch' }}
                         />
                       </div>
                     ))}
