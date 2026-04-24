@@ -34,10 +34,22 @@ export default function App() {
   const [focusedOption, setFocusedOption] = useState(null);
 
   const messagesEndRef = useRef(null);
+  const optionRefs = useRef({});
+  const extraInputRef = useRef(null);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  useEffect(() => {
+    if (activeCommand) {
+      if (focusedOption && optionRefs.current[focusedOption]) {
+        optionRefs.current[focusedOption].focus();
+      } else if (!focusedOption && extraInputRef.current) {
+        extraInputRef.current.focus();
+      }
+    }
+  }, [focusedOption, activeCommand]);
 
   const pushMessage = (msg) => {
     setMessages(prev => [...prev, {
@@ -405,7 +417,7 @@ export default function App() {
       if (idx !== -1 && idx < activeCommand.options.length - 1) {
         setFocusedOption(activeCommand.options[idx + 1].name);
       } else {
-        setFocusedOption(null);
+        setFocusedOption(null); // This will focus the extra input
       }
     } else if (e.key === 'Backspace' && !commandOptions[optName]) {
       e.preventDefault();
@@ -413,7 +425,9 @@ export default function App() {
       if (idx > 0) {
         setFocusedOption(activeCommand.options[idx - 1].name);
       } else {
+        const cmdName = activeCommand.name;
         setActiveCommand(null);
+        setInputValue('/' + cmdName);
       }
     }
   };
@@ -616,7 +630,12 @@ export default function App() {
                 </div>
               )}
 
-              <div className="chat-input-wrapper">
+              <div className="chat-input-wrapper" onClick={() => {
+                if (activeCommand && !focusedOption) {
+                  const lastOpt = activeCommand.options[activeCommand.options.length - 1];
+                  if (lastOpt) setFocusedOption(lastOpt.name);
+                }
+              }}>
                 <Plus size={24} color="var(--interactive-normal)" style={{ marginRight: '16px', cursor: 'pointer' }} />
                 
                 {activeCommand ? (
@@ -626,10 +645,11 @@ export default function App() {
                       <div 
                         className={`command-option-pill ${focusedOption === opt.name ? 'focused' : ''}`} 
                         key={opt.name} 
-                        onClick={() => setFocusedOption(opt.name)}
+                        onClick={(e) => { e.stopPropagation(); setFocusedOption(opt.name); }}
                       >
                         <span className="command-option-name">{opt.name}</span>
                         <input 
+                          ref={el => optionRefs.current[opt.name] = el}
                           type="text" 
                           className="command-option-value" 
                           value={commandOptions[opt.name] || ''}
@@ -637,10 +657,33 @@ export default function App() {
                           onFocus={() => setFocusedOption(opt.name)}
                           onKeyDown={(e) => handleOptionKeyDown(e, opt.name)}
                           autoFocus={focusedOption === opt.name}
-                          style={{ width: commandOptions[opt.name] ? `${Math.max(commandOptions[opt.name].length, 2)}ch` : '2ch' }}
+                          style={{ width: commandOptions[opt.name] ? `${Math.max(commandOptions[opt.name].length, 1) + 1.5}ch` : '2ch' }}
                         />
                       </div>
                     ))}
+                    <input
+                      ref={extraInputRef}
+                      type="text"
+                      className="slash-command-extra-input"
+                      value=""
+                      onChange={() => {}}
+                      onFocus={() => setFocusedOption(null)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Backspace') {
+                          e.preventDefault();
+                          const lastOpt = activeCommand.options[activeCommand.options.length - 1];
+                          if (lastOpt) setFocusedOption(lastOpt.name);
+                          else {
+                            const cmdName = activeCommand.name;
+                            setActiveCommand(null);
+                            setInputValue('/' + cmdName);
+                          }
+                        } else if (e.key === 'Enter') {
+                          submitCommandUI();
+                        }
+                      }}
+                      style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', cursor: 'text', minWidth: '10px' }}
+                    />
                   </div>
                 ) : (
                   <input 

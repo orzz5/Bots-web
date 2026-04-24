@@ -447,6 +447,8 @@ body, html {
   background: transparent;
   font-family: inherit;
   min-width: 10px;
+  height: 26px;
+  line-height: 26px;
 }
 
 /* Embeds */
