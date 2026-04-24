@@ -1,19 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Hash, Compass, Plus, Mic, Headphones, Settings, Bell, Pin, Users, Search, Inbox, HelpCircle, CheckCircle2, Bot, User } from 'lucide-react';
-
-// Argument Parser: handles formats like -> /reminder name: "Buy Milk" time: 10:00
-const parseArgs = (argsStr) => {
-  const args = {};
-  const regex = /(\w+):\s*(".*?"|'.*?'|[^ ]+)/g;
-  let match;
-  while ((match = regex.exec(argsStr)) !== null) {
-    let val = match[2];
-    if (val.startsWith('"') && val.endsWith('"')) val = val.substring(1, val.length - 1);
-    else if (val.startsWith("'") && val.endsWith("'")) val = val.substring(1, val.length - 1);
-    args[match[1]] = val;
-  }
-  return args;
-};
+import { Hash, Compass, Plus, Mic, Headphones, Settings, Bell, Pin, Users, Search, Inbox, HelpCircle, CheckCircle2, Bot, User, Home, Info } from 'lucide-react';
 
 function Tooltip({ children, text }) {
   return (
@@ -25,21 +11,27 @@ function Tooltip({ children, text }) {
 }
 
 export default function App() {
+  const [activeServer, setActiveServer] = useState('bot'); // 'home' or 'bot'
   const [messages, setMessages] = useState([
     {
       id: 1,
       type: 'text',
       author: 'Discord Reminders Bot',
       isBot: true,
-      text: 'Hello! I am the exact Discord Reminders Bot simulator. Try typing commands with their options, for example:\n`/reminder name: "Buy Milk" time: 10:00 day: Monday timezone: UTC ping: true`\n`/list`\n`/stats`\n`/clean`',
+      text: 'Hello! I am the exact Discord Reminders Bot simulator. Type `/` to see my commands and use the interactive options menu!',
       time: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})
     }
   ]);
   const [inputValue, setInputValue] = useState('');
   const [reminders, setReminders] = useState([]);
   const [stats, setStats] = useState({ completed: 5, not_completed: 1, total: 6, current_streak: 3, longest_streak: 5 });
+  
+  // Slash command UI state
   const [showAutocomplete, setShowAutocomplete] = useState(false);
   const [selectedAutocompleteIndex, setSelectedAutocompleteIndex] = useState(0);
+  const [activeCommand, setActiveCommand] = useState(null);
+  const [commandOptions, setCommandOptions] = useState({});
+  const [focusedOption, setFocusedOption] = useState(null);
 
   const messagesEndRef = useRef(null);
 
@@ -92,22 +84,61 @@ export default function App() {
   };
 
   const commands = [
-    { name: 'reminder', desc: 'Create a new reminder (options: name, time, day, timezone, ping)' },
-    { name: 'list', desc: 'Show all your active reminders' },
-    { name: 'remove', desc: 'Remove a specific reminder (options: reminder)' },
-    { name: 'clean', desc: 'Remove all your active reminders' },
-    { name: 'edit', desc: 'Edit an existing reminder (options: reminder, time, day, timezone)' },
-    { name: 'repeat', desc: 'Set repeat days for an existing reminder (options: reminder, days)' },
-    { name: 'stats', desc: 'View your reminder statistics and streak' }
+    { 
+      name: 'reminder', 
+      desc: 'Create a new reminder',
+      options: [
+        { name: 'name', desc: 'Description/name for your reminder', choices: null },
+        { name: 'time', desc: 'Time in HH:MM format', choices: null },
+        { name: 'day', desc: 'Day of the week', choices: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'] },
+        { name: 'timezone', desc: 'Your timezone', choices: ['UTC', 'EST', 'CST', 'MST', 'PST', 'GMT'] },
+        { name: 'ping', desc: 'Should the bot ping you?', choices: ['true', 'false'] }
+      ]
+    },
+    { 
+      name: 'list', 
+      desc: 'Show all your active reminders',
+      options: []
+    },
+    { 
+      name: 'remove', 
+      desc: 'Remove a specific reminder',
+      options: [
+        { name: 'reminder', desc: 'Select the reminder (ID)', choices: null }
+      ]
+    },
+    { 
+      name: 'clean', 
+      desc: 'Remove all your active reminders',
+      options: []
+    },
+    { 
+      name: 'edit', 
+      desc: 'Edit an existing reminder',
+      options: [
+        { name: 'reminder', desc: 'Select the reminder to edit (ID)', choices: null },
+        { name: 'time', desc: 'New time in HH:MM format', choices: null },
+        { name: 'day', desc: 'New day of the week', choices: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'] },
+        { name: 'timezone', desc: 'New timezone', choices: ['UTC', 'EST', 'CST', 'MST', 'PST', 'GMT'] }
+      ]
+    },
+    { 
+      name: 'repeat', 
+      desc: 'Set repeat days for an existing reminder',
+      options: [
+        { name: 'reminder', desc: 'Select the reminder (ID)', choices: null },
+        { name: 'days', desc: 'Days to repeat (comma-separated)', choices: null }
+      ]
+    },
+    { 
+      name: 'stats', 
+      desc: 'View your reminder statistics and streak',
+      options: []
+    }
   ];
 
-  const processCommand = (cmdStr) => {
-    const spaceIdx = cmdStr.indexOf(' ');
-    const commandName = spaceIdx === -1 ? cmdStr.substring(1).toLowerCase() : cmdStr.substring(1, spaceIdx).toLowerCase();
-    const argsStr = spaceIdx === -1 ? '' : cmdStr.substring(spaceIdx + 1);
-    const args = parseArgs(argsStr);
-
-    if (commandName === 'reminder') {
+  const processCommand = (cmdName, args) => {
+    if (cmdName === 'reminder') {
       const name = args.name || 'Untitled Reminder';
       const time = args.time || '12:00';
       const day = args.day || 'Today';
@@ -118,7 +149,6 @@ export default function App() {
       setReminders(prev => [...prev, newReminder]);
       setStats(prev => ({ ...prev, total: prev.total + 1 }));
 
-      // DM Message
       pushMessage({
         type: 'embed',
         author: 'Discord Reminders Bot (DM)',
@@ -137,7 +167,6 @@ export default function App() {
         }
       });
 
-      // Channel Message
       setTimeout(() => {
         pushMessage({
           type: 'embed',
@@ -151,18 +180,9 @@ export default function App() {
         });
       }, 500);
     } 
-    else if (commandName === 'list') {
+    else if (cmdName === 'list') {
       if (reminders.length === 0) {
-        pushMessage({
-          type: 'embed',
-          author: 'Discord Reminders Bot',
-          isBot: true,
-          embed: {
-            color: 'color-info',
-            title: '📋 No Active Reminders',
-            description: 'You don\'t have any active reminders. Use `/reminder` to create one!'
-          }
-        });
+        pushMessage({ type: 'embed', author: 'Discord Reminders Bot', isBot: true, embed: { color: 'color-info', title: '📋 No Active Reminders', description: 'You don\'t have any active reminders. Use `/reminder` to create one!' } });
       } else {
         pushMessage({
           type: 'embed',
@@ -181,18 +201,9 @@ export default function App() {
         });
       }
     }
-    else if (commandName === 'clean') {
+    else if (cmdName === 'clean') {
       if (reminders.length === 0) {
-        pushMessage({
-          type: 'embed',
-          author: 'Discord Reminders Bot',
-          isBot: true,
-          embed: {
-            color: 'color-info',
-            title: '📋 No Reminders to Clean',
-            description: 'You don\'t have any active reminders to remove.'
-          }
-        });
+        pushMessage({ type: 'embed', author: 'Discord Reminders Bot', isBot: true, embed: { color: 'color-info', title: '📋 No Reminders to Clean', description: 'You don\'t have any active reminders to remove.' } });
       } else {
         pushMessage({
           type: 'embed',
@@ -215,12 +226,10 @@ export default function App() {
         });
       }
     }
-    else if (commandName === 'remove') {
+    else if (cmdName === 'remove') {
       const id = args.reminder;
-      if (!id) {
-        pushMessage({ type: 'embed', author: 'Discord Reminders Bot', isBot: true, embed: { color: 'color-error', title: '❌ Error', description: 'Please provide a reminder ID using `reminder: ID`.' } });
-        return;
-      }
+      if (!id) return pushMessage({ type: 'embed', author: 'Discord Reminders Bot', isBot: true, embed: { color: 'color-error', title: '❌ Error', description: 'Please provide a reminder ID.' } });
+      
       const reminderToRemove = reminders.find(r => r.id === id);
       if (!reminderToRemove) {
          pushMessage({ type: 'embed', author: 'Discord Reminders Bot', isBot: true, embed: { color: 'color-error', title: '❌ Invalid Selection', description: `No reminder found with ID: ${id}` } });
@@ -231,9 +240,7 @@ export default function App() {
           author: 'Discord Reminders Bot',
           isBot: true,
           embed: { 
-            color: 'color-success', 
-            title: '✅ Reminder Removed', 
-            description: `Your reminder **"${reminderToRemove.name}"** has been successfully removed.`,
+            color: 'color-success', title: '✅ Reminder Removed', description: `Your reminder **"${reminderToRemove.name}"** has been successfully removed.`,
             fields: [
               { name: '🕐 Time', value: reminderToRemove.time, inline: true },
               { name: '📅 Day', value: reminderToRemove.day, inline: true },
@@ -243,21 +250,12 @@ export default function App() {
         });
       }
     }
-    else if (commandName === 'edit') {
+    else if (cmdName === 'edit') {
       const id = args.reminder;
-      if (!id) {
-        pushMessage({ type: 'embed', author: 'Discord Reminders Bot', isBot: true, embed: { color: 'color-error', title: '❌ Error', description: 'Please provide a reminder ID using `reminder: ID`.' } });
-        return;
-      }
+      if (!id) return pushMessage({ type: 'embed', author: 'Discord Reminders Bot', isBot: true, embed: { color: 'color-error', title: '❌ Error', description: 'Please provide a reminder ID.' } });
       const existing = reminders.find(r => r.id === id);
-      if (!existing) {
-        pushMessage({ type: 'embed', author: 'Discord Reminders Bot', isBot: true, embed: { color: 'color-error', title: '❌ Invalid Selection', description: `No reminder found with ID: ${id}` } });
-        return;
-      }
-      if (!args.time && !args.day && !args.timezone) {
-        pushMessage({ type: 'embed', author: 'Discord Reminders Bot', isBot: true, embed: { color: 'color-error', title: '❌ No Changes', description: `Please specify at least one field to edit (time, day, timezone).` } });
-        return;
-      }
+      if (!existing) return pushMessage({ type: 'embed', author: 'Discord Reminders Bot', isBot: true, embed: { color: 'color-error', title: '❌ Invalid Selection', description: `No reminder found with ID: ${id}` } });
+      if (!args.time && !args.day && !args.timezone) return pushMessage({ type: 'embed', author: 'Discord Reminders Bot', isBot: true, embed: { color: 'color-error', title: '❌ No Changes', description: `Please specify at least one field to edit (time, day, timezone).` } });
 
       const updated = { ...existing };
       if (args.time) updated.time = args.time;
@@ -270,9 +268,7 @@ export default function App() {
         author: 'Discord Reminders Bot',
         isBot: true,
         embed: { 
-          color: 'color-success', 
-          title: '✅ Reminder Updated', 
-          description: `Your reminder **"${updated.name}"** has been successfully updated.`,
+          color: 'color-success', title: '✅ Reminder Updated', description: `Your reminder **"${updated.name}"** has been successfully updated.`,
           fields: [
             { name: '🕐 Time', value: updated.time, inline: true },
             { name: '📅 Day', value: updated.day, inline: true },
@@ -282,18 +278,12 @@ export default function App() {
         }
       });
     }
-    else if (commandName === 'repeat') {
+    else if (cmdName === 'repeat') {
       const id = args.reminder;
       const days = args.days;
-      if (!id || !days) {
-        pushMessage({ type: 'embed', author: 'Discord Reminders Bot', isBot: true, embed: { color: 'color-error', title: '❌ Error', description: 'Please provide `reminder: ID` and `days: Monday,Tuesday`.' } });
-        return;
-      }
+      if (!id || !days) return pushMessage({ type: 'embed', author: 'Discord Reminders Bot', isBot: true, embed: { color: 'color-error', title: '❌ Error', description: 'Please provide `reminder` and `days`.' } });
       const existing = reminders.find(r => r.id === id);
-      if (!existing) {
-        pushMessage({ type: 'embed', author: 'Discord Reminders Bot', isBot: true, embed: { color: 'color-error', title: '❌ Invalid Selection', description: `No reminder found with ID: ${id}` } });
-        return;
-      }
+      if (!existing) return pushMessage({ type: 'embed', author: 'Discord Reminders Bot', isBot: true, embed: { color: 'color-error', title: '❌ Invalid Selection', description: `No reminder found with ID: ${id}` } });
       
       const updated = { ...existing, repeat_days: days };
       setReminders(prev => prev.map(r => r.id === id ? updated : r));
@@ -302,9 +292,7 @@ export default function App() {
         author: 'Discord Reminders Bot',
         isBot: true,
         embed: { 
-          color: 'color-success', 
-          title: '✅ Repeat Settings Updated', 
-          description: `Repeat settings for **"${updated.name}"** have been updated.`,
+          color: 'color-success', title: '✅ Repeat Settings Updated', description: `Repeat settings for **"${updated.name}"** have been updated.`,
           fields: [
             { name: '🕐 Time', value: updated.time, inline: true },
             { name: '📅 Original Day', value: updated.day, inline: true },
@@ -314,7 +302,7 @@ export default function App() {
         }
       });
     }
-    else if (commandName === 'stats') {
+    else if (cmdName === 'stats') {
       const completionRate = stats.total > 0 ? Math.round((stats.completed / stats.total) * 100) : 0;
       let color = 'color-info';
       if (completionRate >= 80) color = 'color-success';
@@ -329,34 +317,20 @@ export default function App() {
         { name: '⭐ Longest Streak', value: `${stats.longest_streak} days`, inline: true }
       ];
 
-      if (completionRate >= 80) {
-        fields.push({ name: '🏆 Achievement', value: 'Excellent performance! You\'re doing great!', inline: false });
-      } else if (completionRate >= 60) {
-        fields.push({ name: '💪 Keep Going', value: 'Good progress! Keep working on improving your completion rate.', inline: false });
-      } else if (stats.total > 0) {
-        fields.push({ name: '📚 Room for Improvement', value: 'Focus on completing more reminders to build your streak.', inline: false });
-      }
+      if (completionRate >= 80) fields.push({ name: '🏆 Achievement', value: 'Excellent performance! You\'re doing great!', inline: false });
+      else if (completionRate >= 60) fields.push({ name: '💪 Keep Going', value: 'Good progress! Keep working on improving your completion rate.', inline: false });
+      else if (stats.total > 0) fields.push({ name: '📚 Room for Improvement', value: 'Focus on completing more reminders to build your streak.', inline: false });
 
       pushMessage({
         type: 'embed',
         author: 'Discord Reminders Bot',
         isBot: true,
         embed: {
-          color: color,
-          title: '📊 Your Reminder Statistics',
+          color: color, title: '📊 Your Reminder Statistics',
           description: stats.total === 0 ? 'You haven\'t completed any reminders yet. Start creating reminders with `/reminder` and build your streak!' : 'Here\'s your performance overview',
           thumbnail: 'https://assets-global.website-files.com/6257adef93867e50d84d30e2/636e0a6a49cf127bf92de1e2_icon_clyde_blurple_RGB.png',
-          fields: fields,
-          footer: 'Keep up the great work! Every completed reminder builds your streak.'
+          fields: fields, footer: 'Keep up the great work! Every completed reminder builds your streak.'
         }
-      });
-    }
-    else {
-      pushMessage({
-        type: 'embed',
-        author: 'Discord Reminders Bot',
-        isBot: true,
-        embed: { color: 'color-warning', title: '⚠️ Command Not Found', description: `The command \`/${commandName}\` does not exist.` }
       });
     }
   };
@@ -367,24 +341,22 @@ export default function App() {
     setShowAutocomplete(val.startsWith('/'));
   };
 
-  const handleSubmit = (e) => {
+  const handleTextSubmit = (e) => {
     if (e.key === 'Enter' && inputValue.trim()) {
-      const isCommand = inputValue.startsWith('/');
-      
       if (showAutocomplete && filteredCommands.length > 0) {
         const selectedCmd = filteredCommands[selectedAutocompleteIndex];
-        setInputValue('/' + selectedCmd.name + ' ');
+        setActiveCommand(selectedCmd);
+        setCommandOptions({});
+        if (selectedCmd.options.length > 0) {
+          setFocusedOption(selectedCmd.options[0].name);
+        }
+        setInputValue('');
         setShowAutocomplete(false);
         e.preventDefault();
         return;
       }
 
       pushMessage({ type: 'text', author: 'You', isBot: false, text: inputValue });
-
-      if (isCommand) {
-        processCommand(inputValue);
-      }
-      
       setInputValue('');
       setShowAutocomplete(false);
     } else if (e.key === 'ArrowDown' && showAutocomplete) {
@@ -396,21 +368,60 @@ export default function App() {
     }
   };
 
+  const submitCommandUI = () => {
+    let commandText = `/${activeCommand.name}`;
+    Object.keys(commandOptions).forEach(k => {
+      if (commandOptions[k]) commandText += ` ${k}: ${commandOptions[k]}`;
+    });
+    pushMessage({ type: 'text', author: 'You', isBot: false, text: commandText });
+    processCommand(activeCommand.name, commandOptions);
+    setActiveCommand(null);
+    setCommandOptions({});
+    setFocusedOption(null);
+  };
+
+  const handleOptionKeyDown = (e, optName) => {
+    if (e.key === 'Enter') {
+      submitCommandUI();
+    } else if (e.key === 'Tab') {
+      e.preventDefault();
+      const idx = activeCommand.options.findIndex(o => o.name === optName);
+      if (idx !== -1 && idx < activeCommand.options.length - 1) {
+        setFocusedOption(activeCommand.options[idx + 1].name);
+      } else {
+        setFocusedOption(null);
+      }
+    } else if (e.key === 'Backspace' && !commandOptions[optName]) {
+      e.preventDefault();
+      const idx = activeCommand.options.findIndex(o => o.name === optName);
+      if (idx > 0) {
+        setFocusedOption(activeCommand.options[idx - 1].name);
+      } else {
+        setActiveCommand(null);
+      }
+    }
+  };
+
   const filteredCommands = commands.filter(cmd => 
     ('/' + cmd.name).startsWith(inputValue.split(' ')[0].toLowerCase())
   );
 
+  const activeOptionObj = activeCommand?.options.find(o => o.name === focusedOption);
+
   return (
     <div className="discord-app">
       <div className="server-sidebar">
-        <Tooltip text="Direct Messages">
-          <div className="server-icon" style={{ backgroundColor: '#5865F2', color: 'white' }}>
-            <img src="https://assets-global.website-files.com/6257adef93867e50d84d30e2/636e0a6a49cf127bf92de1e2_icon_clyde_blurple_RGB.png" alt="Discord" />
+        {/* Home / Info Server Button at the very top */}
+        <Tooltip text="Web Simulator Information">
+          <div className={`server-icon ${activeServer === 'info' ? 'active' : ''}`} style={{ backgroundColor: activeServer === 'info' ? 'var(--brand-color)' : '#1e1f22', color: 'white' }} onClick={() => setActiveServer('info')}>
+            <Home size={28} />
           </div>
         </Tooltip>
+
         <div className="server-separator"></div>
+
         <Tooltip text="Discord-reminders-bot Simulator">
-          <div className="server-icon active">
+          <div className={`server-icon ${activeServer === 'bot' ? 'active' : ''}`} onClick={() => setActiveServer('bot')}>
             <Bot size={28} />
           </div>
         </Tooltip>
@@ -422,142 +433,215 @@ export default function App() {
         </div>
       </div>
 
-      <div className="channel-sidebar">
-        <div className="channel-header">Bot Simulator</div>
-        <div className="channel-list">
-          <div className="channel-item active"><Hash size={20} /><span>bot-testing</span></div>
-          <div className="channel-item"><Hash size={20} /><span>general</span></div>
-        </div>
-        
-        <div className="user-area">
-          <div className="user-avatar"><User size={20} color="white" /></div>
-          <div className="user-info">
-            <div className="username">You</div>
-            <a href="https://orzz.website" target="_blank" rel="noreferrer" className="status">orzz.website</a>
+      {activeServer === 'info' ? (
+        <div style={{ flex: 1, backgroundColor: 'var(--bg-primary)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px' }}>
+          <Info size={64} color="var(--brand-color)" style={{ marginBottom: '24px' }} />
+          <h1 style={{ fontSize: '36px', marginBottom: '16px', fontWeight: 800, color: 'white' }}>Welcome to the Web Simulator</h1>
+          <p style={{ fontSize: '18px', color: 'var(--text-muted)', textAlign: 'center', maxWidth: '600px', lineHeight: '1.6' }}>
+            This website is a fully interactive replica of the Discord UI, created specifically to let you test the <strong>Discord-reminders-bot</strong> directly from your browser—without needing to invite it to a real server.
+          </p>
+          <div style={{ backgroundColor: 'var(--bg-secondary)', padding: '24px', borderRadius: '8px', marginTop: '40px', maxWidth: '600px', width: '100%', borderLeft: '4px solid #f39c12' }}>
+            <h3 style={{ color: 'var(--header-primary)', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              ⚠️ Experimental Version
+            </h3>
+            <p style={{ color: 'var(--text-normal)', lineHeight: '1.5' }}>
+              Please note that this is an experimental web version. Data is stored temporarily and will be cleared if you refresh the page. The <strong>real Discord bot</strong> runs on an actual database, guaranteeing superior persistence, stability, and performance.
+            </p>
           </div>
-          <Mic size={20} color="var(--header-secondary)" style={{cursor: 'pointer'}} />
-          <Headphones size={20} color="var(--header-secondary)" style={{cursor: 'pointer'}} />
-          <Settings size={20} color="var(--header-secondary)" style={{cursor: 'pointer'}} />
         </div>
-      </div>
-
-      <div className="chat-area">
-        <div className="chat-header">
-          <Hash size={24} color="var(--text-muted)" />
-          <span>bot-testing</span>
-          <div style={{ flex: 1 }}></div>
-          <Bell size={24} /><Pin size={24} /><Users size={24} />
-          <div style={{ width: '144px', height: '24px', backgroundColor: 'var(--bg-tertiary)', borderRadius: '4px', display: 'flex', alignItems: 'center', padding: '0 8px', marginLeft: '16px' }}>
-            <span style={{ fontSize: '12px', color: 'var(--text-muted)', flex: 1 }}>Search</span>
-            <Search size={14} color="var(--text-muted)" />
-          </div>
-          <Inbox size={24} style={{ marginLeft: '16px' }} />
-          <HelpCircle size={24} style={{ marginLeft: '16px' }} />
-        </div>
-
-        <div className="chat-messages">
-          {messages.map((msg) => (
-            <div className="message-wrapper" key={msg.id}>
-              <div className="message-avatar">
-                {msg.isBot ? <Bot size={24} color="white" /> : <User size={24} color="white" />}
+      ) : (
+        <>
+          <div className="channel-sidebar">
+            <div className="channel-header">Bot Simulator</div>
+            <div className="channel-list">
+              <div className="channel-item active"><Hash size={20} /><span>bot-testing</span></div>
+              <div className="channel-item"><Hash size={20} /><span>general</span></div>
+            </div>
+            
+            <div className="user-area">
+              <div className="user-avatar"><User size={20} color="white" /></div>
+              <div className="user-info">
+                <div className="username">You</div>
+                <a href="https://orzz.website" target="_blank" rel="noreferrer" className="status">orzz.website</a>
               </div>
-              <div className="message-content">
-                <div className="message-header">
-                  <span className="message-author">{msg.author}</span>
-                  {msg.isBot && <span className="bot-tag"><CheckCircle2 size={10} /> BOT</span>}
-                  <span className="message-time" style={{ marginLeft: '8px' }}>{msg.time}</span>
-                </div>
-                {msg.type === 'text' && <div className="message-text">{msg.text}</div>}
-                
-                {msg.type === 'embed' && (
-                  <div className={`discord-embed ${msg.embed.color}`}>
-                    {msg.embed.thumbnail && <img className="embed-thumbnail" src={msg.embed.thumbnail} alt="thumbnail" />}
-                    {msg.embed.title && <div className="embed-title">{msg.embed.title}</div>}
-                    {msg.embed.description && <div className="embed-description">{msg.embed.description}</div>}
+              <Mic size={20} color="var(--header-secondary)" style={{cursor: 'pointer'}} />
+              <Headphones size={20} color="var(--header-secondary)" style={{cursor: 'pointer'}} />
+              <Settings size={20} color="var(--header-secondary)" style={{cursor: 'pointer'}} />
+            </div>
+          </div>
+
+          <div className="chat-area">
+            <div className="chat-header">
+              <Hash size={24} color="var(--text-muted)" />
+              <span>bot-testing</span>
+              <div style={{ flex: 1 }}></div>
+              <Bell size={24} /><Pin size={24} /><Users size={24} />
+              <div style={{ width: '144px', height: '24px', backgroundColor: 'var(--bg-tertiary)', borderRadius: '4px', display: 'flex', alignItems: 'center', padding: '0 8px', marginLeft: '16px' }}>
+                <span style={{ fontSize: '12px', color: 'var(--text-muted)', flex: 1 }}>Search</span>
+                <Search size={14} color="var(--text-muted)" />
+              </div>
+              <Inbox size={24} style={{ marginLeft: '16px' }} />
+              <HelpCircle size={24} style={{ marginLeft: '16px' }} />
+            </div>
+
+            <div className="chat-messages">
+              {messages.map((msg) => (
+                <div className="message-wrapper" key={msg.id}>
+                  <div className="message-avatar">
+                    {msg.isBot ? <Bot size={24} color="white" /> : <User size={24} color="white" />}
+                  </div>
+                  <div className="message-content">
+                    <div className="message-header">
+                      <span className="message-author">{msg.author}</span>
+                      {msg.isBot && <span className="bot-tag"><CheckCircle2 size={10} /> BOT</span>}
+                      <span className="message-time" style={{ marginLeft: '8px' }}>{msg.time}</span>
+                    </div>
+                    {msg.type === 'text' && <div className="message-text">{msg.text}</div>}
                     
-                    {msg.embed.fields && msg.embed.fields.length > 0 && (
-                      <div className="embed-fields">
-                        {msg.embed.fields.map((field, idx) => (
-                          <div className={`embed-field ${field.inline ? 'inline' : ''}`} key={idx}>
-                            <div className="embed-field-name">{field.name}</div>
-                            <div className="embed-field-value">{field.value}</div>
+                    {msg.type === 'embed' && (
+                      <div className={`discord-embed ${msg.embed.color}`}>
+                        {msg.embed.thumbnail && <img className="embed-thumbnail" src={msg.embed.thumbnail} alt="thumbnail" />}
+                        {msg.embed.title && <div className="embed-title">{msg.embed.title}</div>}
+                        {msg.embed.description && <div className="embed-description">{msg.embed.description}</div>}
+                        
+                        {msg.embed.fields && msg.embed.fields.length > 0 && (
+                          <div className="embed-fields">
+                            {msg.embed.fields.map((field, idx) => (
+                              <div className={`embed-field ${field.inline ? 'inline' : ''}`} key={idx}>
+                                <div className="embed-field-name">{field.name}</div>
+                                <div className="embed-field-value">{field.value}</div>
+                              </div>
+                            ))}
                           </div>
+                        )}
+                        
+                        {msg.embed.footer && (
+                          <div className="embed-footer">
+                            {msg.embed.footer}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                    
+                    {msg.components && msg.components.map((row, rIdx) => (
+                      <div className="action-row" key={rIdx}>
+                        {row.buttons.map((btn, bIdx) => (
+                          <button 
+                            key={bIdx} 
+                            className={`discord-button btn-${btn.style}`}
+                            onClick={() => handleButton(msg.id, btn.customId)}
+                          >
+                            {btn.label}
+                          </button>
                         ))}
                       </div>
-                    )}
-                    
-                    {msg.embed.footer && (
-                      <div className="embed-footer">
-                        {msg.embed.footer}
-                      </div>
-                    )}
-                  </div>
-                )}
-                
-                {msg.components && msg.components.map((row, rIdx) => (
-                  <div className="action-row" key={rIdx}>
-                    {row.buttons.map((btn, bIdx) => (
-                      <button 
-                        key={bIdx} 
-                        className={`discord-button btn-${btn.style}`}
-                        onClick={() => handleButton(msg.id, btn.customId)}
-                      >
-                        {btn.label}
-                      </button>
                     ))}
                   </div>
-                ))}
-              </div>
+                </div>
+              ))}
+              <div ref={messagesEndRef} />
             </div>
-          ))}
-          <div ref={messagesEndRef} />
-        </div>
 
-        <div className="chat-input-container">
-          {showAutocomplete && inputValue.startsWith('/') && (
-            <div className="autocomplete-popup">
-              <div className="autocomplete-header">Commands matching {inputValue}</div>
-              <div className="autocomplete-list">
-                {filteredCommands.length === 0 ? (
-                  <div className="autocomplete-item"><span className="autocomplete-name" style={{ color: 'var(--text-muted)' }}>No commands found</span></div>
-                ) : (
-                  filteredCommands.map((cmd, idx) => (
-                    <div 
-                      key={cmd.name} 
-                      className={`autocomplete-item ${idx === selectedAutocompleteIndex ? 'selected' : ''}`}
-                      onClick={() => {
-                        setInputValue('/' + cmd.name + ' ');
-                        setShowAutocomplete(false);
-                        document.querySelector('.chat-input').focus();
-                      }}
-                      onMouseEnter={() => setSelectedAutocompleteIndex(idx)}
-                    >
-                      <div className="autocomplete-icon"><Bot size={20} color="var(--text-normal)" /></div>
-                      <div>
-                        <div className="autocomplete-name">/{cmd.name}</div>
-                        <div className="autocomplete-desc">{cmd.desc}</div>
+            <div className="chat-input-container">
+              {showAutocomplete && inputValue.startsWith('/') && !activeCommand && (
+                <div className="autocomplete-popup">
+                  <div className="autocomplete-header">Commands matching {inputValue}</div>
+                  <div className="autocomplete-list">
+                    {filteredCommands.length === 0 ? (
+                      <div className="autocomplete-item"><span className="autocomplete-name" style={{ color: 'var(--text-muted)' }}>No commands found</span></div>
+                    ) : (
+                      filteredCommands.map((cmd, idx) => (
+                        <div 
+                          key={cmd.name} 
+                          className={`autocomplete-item ${idx === selectedAutocompleteIndex ? 'selected' : ''}`}
+                          onClick={() => {
+                            setActiveCommand(cmd);
+                            setCommandOptions({});
+                            if (cmd.options.length > 0) setFocusedOption(cmd.options[0].name);
+                            setInputValue('');
+                            setShowAutocomplete(false);
+                          }}
+                          onMouseEnter={() => setSelectedAutocompleteIndex(idx)}
+                        >
+                          <div className="autocomplete-icon"><Bot size={20} color="var(--text-normal)" /></div>
+                          <div>
+                            <div className="autocomplete-name">/{cmd.name}</div>
+                            <div className="autocomplete-desc">{cmd.desc}</div>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {activeCommand && focusedOption && activeOptionObj?.choices && (
+                <div className="autocomplete-popup" style={{ width: '250px' }}>
+                  <div className="autocomplete-header">OPTIONS</div>
+                  <div className="autocomplete-list">
+                    {activeOptionObj.choices.map((choice, idx) => (
+                      <div 
+                        key={choice} 
+                        className="autocomplete-item"
+                        onClick={() => {
+                          setCommandOptions({...commandOptions, [focusedOption]: choice});
+                          const optIdx = activeCommand.options.findIndex(o => o.name === focusedOption);
+                          if (optIdx !== -1 && optIdx < activeCommand.options.length - 1) {
+                            setFocusedOption(activeCommand.options[optIdx + 1].name);
+                          } else {
+                            setFocusedOption(null);
+                          }
+                        }}
+                      >
+                        <div className="autocomplete-name">{choice}</div>
                       </div>
-                    </div>
-                  ))
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div className="chat-input-wrapper">
+                <Plus size={24} color="var(--interactive-normal)" style={{ marginRight: '16px', cursor: 'pointer' }} />
+                
+                {activeCommand ? (
+                  <div className="slash-command-ui">
+                    <span className="slash-command-name">/{activeCommand.name}</span>
+                    {activeCommand.options.map((opt) => (
+                      <div 
+                        className={`command-option-pill ${focusedOption === opt.name ? 'focused' : ''}`} 
+                        key={opt.name} 
+                        onClick={() => setFocusedOption(opt.name)}
+                      >
+                        <span className="command-option-name">{opt.name}</span>
+                        <input 
+                          type="text" 
+                          className="command-option-value" 
+                          value={commandOptions[opt.name] || ''}
+                          onChange={(e) => setCommandOptions({...commandOptions, [opt.name]: e.target.value})}
+                          onFocus={() => setFocusedOption(opt.name)}
+                          onKeyDown={(e) => handleOptionKeyDown(e, opt.name)}
+                          autoFocus={focusedOption === opt.name}
+                          style={{ width: commandOptions[opt.name] ? `${Math.max(commandOptions[opt.name].length * 8, 10)}px` : '10px' }}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <input 
+                    type="text" 
+                    className="chat-input" 
+                    placeholder="Message #bot-testing (Try typing / to see bot commands)" 
+                    value={inputValue}
+                    onChange={handleInputChange}
+                    onKeyDown={handleTextSubmit}
+                    autoComplete="off"
+                  />
                 )}
               </div>
             </div>
-          )}
-
-          <div className="chat-input-wrapper">
-            <Plus size={24} color="var(--interactive-normal)" style={{ marginRight: '16px', cursor: 'pointer' }} />
-            <input 
-              type="text" 
-              className="chat-input" 
-              placeholder="Message #bot-testing (Try typing / to see bot commands)" 
-              value={inputValue}
-              onChange={handleInputChange}
-              onKeyDown={handleSubmit}
-              autoComplete="off"
-            />
           </div>
-        </div>
-      </div>
+        </>
+      )}
     </div>
   );
 }
