@@ -369,8 +369,9 @@ export default function App() {
   };
 
   const handleTextSubmit = (e) => {
-    if (e.key === 'Enter' && inputValue.trim()) {
+    if ((e.key === 'Enter' || e.key === 'Tab') && inputValue.trim()) {
       if (showAutocomplete && filteredCommands.length > 0) {
+        e.preventDefault();
         const selectedCmd = filteredCommands[selectedAutocompleteIndex];
         setActiveCommand(selectedCmd);
         setCommandOptions({});
@@ -379,13 +380,14 @@ export default function App() {
         }
         setInputValue('');
         setShowAutocomplete(false);
-        e.preventDefault();
         return;
       }
 
-      pushMessage({ type: 'text', author: 'You', isBot: false, text: inputValue });
-      setInputValue('');
-      setShowAutocomplete(false);
+      if (e.key === 'Enter') {
+        pushMessage({ type: 'text', author: 'You', isBot: false, text: inputValue });
+        setInputValue('');
+        setShowAutocomplete(false);
+      }
     } else if (e.key === 'ArrowDown' && showAutocomplete) {
       e.preventDefault();
       setSelectedAutocompleteIndex(prev => Math.min(prev + 1, filteredCommands.length - 1));
@@ -409,17 +411,36 @@ export default function App() {
   };
 
   const handleOptionKeyDown = (e, optName) => {
-    if (e.key === 'Enter') {
-      submitCommandUI();
-    } else if (e.key === 'Tab') {
+    const optObj = activeCommand.options.find(o => o.name === optName);
+    const val = commandOptions[optName] || '';
+    const choices = optObj?.choices?.filter(c => c.toLowerCase().startsWith(val.toLowerCase())) || [];
+    const canAutocomplete = optObj?.choices && choices.length > 0 && val.toLowerCase() !== choices[0].toLowerCase();
+
+    if (e.key === 'Tab') {
       e.preventDefault();
+      if (canAutocomplete) {
+        setCommandOptions(prev => ({...prev, [optName]: choices[0]}));
+      }
       const idx = activeCommand.options.findIndex(o => o.name === optName);
       if (idx !== -1 && idx < activeCommand.options.length - 1) {
         setFocusedOption(activeCommand.options[idx + 1].name);
       } else {
         setFocusedOption(null); // This will focus the extra input
       }
-    } else if (e.key === 'Backspace' && !commandOptions[optName]) {
+    } else if (e.key === 'Enter') {
+      if (canAutocomplete) {
+        e.preventDefault();
+        setCommandOptions(prev => ({...prev, [optName]: choices[0]}));
+        const idx = activeCommand.options.findIndex(o => o.name === optName);
+        if (idx !== -1 && idx < activeCommand.options.length - 1) {
+          setFocusedOption(activeCommand.options[idx + 1].name);
+        } else {
+          setFocusedOption(null);
+        }
+      } else {
+        submitCommandUI();
+      }
+    } else if (e.key === 'Backspace' && !val) {
       e.preventDefault();
       const idx = activeCommand.options.findIndex(o => o.name === optName);
       if (idx > 0) {
@@ -609,7 +630,9 @@ export default function App() {
                 <div className="autocomplete-popup" style={{ width: '250px' }}>
                   <div className="autocomplete-header">OPTIONS</div>
                   <div className="autocomplete-list">
-                    {activeOptionObj.choices.map((choice, idx) => (
+                    {(activeOptionObj.choices.filter(c => c.toLowerCase().startsWith((commandOptions[focusedOption] || '').toLowerCase())).length > 0 
+                      ? activeOptionObj.choices.filter(c => c.toLowerCase().startsWith((commandOptions[focusedOption] || '').toLowerCase()))
+                      : activeOptionObj.choices).map((choice, idx) => (
                       <div 
                         key={choice} 
                         className="autocomplete-item"
