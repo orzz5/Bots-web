@@ -25,6 +25,7 @@ export default function App() {
   const [inputValue, setInputValue] = useState('');
   const [reminders, setReminders] = useState([]);
   const [stats, setStats] = useState({ completed: 5, not_completed: 1, total: 6, current_streak: 3, longest_streak: 5 });
+  const [userBalances, setUserBalances] = useState({});
   
   // Slash command UI state
   const [showAutocomplete, setShowAutocomplete] = useState(false);
@@ -146,6 +147,37 @@ export default function App() {
       name: 'stats', 
       desc: 'View your reminder statistics and streak',
       options: []
+    },
+    { 
+      name: 'add_coins', 
+      desc: 'Add coins to a user (Admin only)',
+      options: [
+        { name: 'user', desc: 'The user to add coins to', choices: null },
+        { name: 'amount', desc: 'The amount of coins to add', choices: null }
+      ]
+    },
+    { 
+      name: 'remove_coins', 
+      desc: 'Remove coins from a user (Admin only)',
+      options: [
+        { name: 'user', desc: 'The user to remove coins from', choices: null },
+        { name: 'amount', desc: 'The amount of coins to remove', choices: null }
+      ]
+    },
+    { 
+      name: 'set_coins', 
+      desc: 'Set a user\'s coins to a specific amount (Admin only)',
+      options: [
+        { name: 'user', desc: 'The user to set coins for', choices: null },
+        { name: 'coins', desc: 'The amount of coins to set', choices: null }
+      ]
+    },
+    { 
+      name: 'view_coins', 
+      desc: 'View a user\'s coin balance',
+      options: [
+        { name: 'user', desc: 'The user to view coins for', choices: null }
+      ]
     }
   ];
 
@@ -360,6 +392,82 @@ export default function App() {
         }
       });
     }
+    else if (cmdName === 'add_coins') {
+      const user = args.user;
+      const amount = parseInt(args.amount);
+      if (!user || isNaN(amount)) return pushMessage({ type: 'embed', author: 'Coins-Bot', isBot: true, embed: { color: 'color-error', title: '❌ Error', description: 'Please provide a valid `user` and `amount`.' } });
+      if (amount <= 0) return pushMessage({ type: 'embed', author: 'Coins-Bot', isBot: true, embed: { color: 'color-error', title: '❌ Error', description: 'Amount must be a positive number!' } });
+      
+      const currentBalance = userBalances[user] || 0;
+      const newBalance = currentBalance + amount;
+      setUserBalances(prev => ({ ...prev, [user]: newBalance }));
+      
+      pushMessage({
+        type: 'embed', author: 'Coins-Bot', isBot: true,
+        embed: {
+          color: 'color-success', title: 'Coins Added', description: `Added ${amount} coins to ${user}`,
+          fields: [{ name: 'New Balance', value: `${newBalance} coins`, inline: false }],
+          footer: 'Added by You'
+        }
+      });
+    }
+    else if (cmdName === 'remove_coins') {
+      const user = args.user;
+      const amount = parseInt(args.amount);
+      if (!user || isNaN(amount)) return pushMessage({ type: 'embed', author: 'Coins-Bot', isBot: true, embed: { color: 'color-error', title: '❌ Error', description: 'Please provide a valid `user` and `amount`.' } });
+      if (amount <= 0) return pushMessage({ type: 'embed', author: 'Coins-Bot', isBot: true, embed: { color: 'color-error', title: '❌ Error', description: 'Amount must be a positive number!' } });
+      
+      const currentBalance = userBalances[user] || 0;
+      if (currentBalance < amount) return pushMessage({ type: 'embed', author: 'Coins-Bot', isBot: true, embed: { color: 'color-error', title: '❌ Error', description: `${user} only has ${currentBalance} coins!` } });
+      
+      const newBalance = currentBalance - amount;
+      setUserBalances(prev => ({ ...prev, [user]: newBalance }));
+      
+      pushMessage({
+        type: 'embed', author: 'Coins-Bot', isBot: true,
+        embed: {
+          color: 'color-error', title: 'Coins Removed', description: `Removed ${amount} coins from ${user}`,
+          fields: [{ name: 'New Balance', value: `${newBalance} coins`, inline: false }],
+          footer: 'Removed by You'
+        }
+      });
+    }
+    else if (cmdName === 'set_coins') {
+      const user = args.user;
+      const coins = parseInt(args.coins);
+      if (!user || isNaN(coins)) return pushMessage({ type: 'embed', author: 'Coins-Bot', isBot: true, embed: { color: 'color-error', title: '❌ Error', description: 'Please provide a valid `user` and `coins`.' } });
+      if (coins < 0) return pushMessage({ type: 'embed', author: 'Coins-Bot', isBot: true, embed: { color: 'color-error', title: '❌ Error', description: 'Coins cannot be negative!' } });
+      
+      const oldBalance = userBalances[user] || 0;
+      setUserBalances(prev => ({ ...prev, [user]: coins }));
+      
+      pushMessage({
+        type: 'embed', author: 'Coins-Bot', isBot: true,
+        embed: {
+          color: 'color-info', title: 'Coins Set', description: `Set ${user}'s coins to ${coins}`,
+          fields: [
+            { name: 'Previous Balance', value: `${oldBalance} coins`, inline: false },
+            { name: 'New Balance', value: `${coins} coins`, inline: false }
+          ],
+          footer: 'Set by You'
+        }
+      });
+    }
+    else if (cmdName === 'view_coins') {
+      const user = args.user;
+      if (!user) return pushMessage({ type: 'embed', author: 'Coins-Bot', isBot: true, embed: { color: 'color-error', title: '❌ Error', description: 'Please provide a valid `user`.' } });
+      
+      const balance = userBalances[user] || 0;
+      
+      pushMessage({
+        type: 'embed', author: 'Coins-Bot', isBot: true,
+        embed: {
+          color: 'color-warning', title: 'Coin Balance', description: `${user}'s coin balance`,
+          fields: [{ name: 'Balance', value: `${balance} coins`, inline: false }],
+          thumbnail: 'https://assets-global.website-files.com/6257adef93867e50d84d30e2/636e0a6a49cf127bf92de1e2_icon_clyde_blurple_RGB.png'
+        }
+      });
+    }
   };
 
   const handleInputChange = (e) => {
@@ -471,7 +579,7 @@ export default function App() {
 
         <div className="server-separator"></div>
 
-        <Tooltip text="Discord-reminders-bot Simulator">
+        <Tooltip text="Discord Bots Simulator">
           <div className={`server-icon ${activeServer === 'bot' ? 'active' : ''}`} onClick={() => setActiveServer('bot')}>
             <Bot size={28} />
           </div>
@@ -489,14 +597,14 @@ export default function App() {
           <Info size={64} color="var(--brand-color)" style={{ marginBottom: '24px' }} />
           <h1 style={{ fontSize: '36px', marginBottom: '16px', fontWeight: 800, color: 'white' }}>Welcome to the Web Simulator</h1>
           <p style={{ fontSize: '18px', color: 'var(--text-muted)', textAlign: 'center', maxWidth: '600px', lineHeight: '1.6' }}>
-            This website is a fully interactive replica of the Discord UI, created specifically to let you test the <strong>Discord-reminders-bot</strong> directly from your browser—without needing to invite it to a real server.
+            This website is a fully interactive replica of the Discord UI, created specifically to let you test my custom Discord bots directly from your browser—without needing to invite them to a real server.
           </p>
           <div style={{ backgroundColor: 'var(--bg-secondary)', padding: '24px', borderRadius: '8px', marginTop: '40px', maxWidth: '600px', width: '100%', borderLeft: '4px solid #f39c12' }}>
             <h3 style={{ color: 'var(--header-primary)', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
               ⚠️ Experimental Version
             </h3>
             <p style={{ color: 'var(--text-normal)', lineHeight: '1.5' }}>
-              Please note that this is an experimental web version. Data is stored temporarily and will be cleared if you refresh the page. The <strong>real Discord bot</strong> runs on an actual database, guaranteeing superior persistence, stability, and performance.
+              Please note that this is an experimental web version. Data is stored temporarily and will be cleared if you refresh the page. The <strong>real Discord bots</strong> run on actual databases, guaranteeing superior persistence, stability, and performance.
             </p>
           </div>
         </div>
