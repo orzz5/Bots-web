@@ -12,16 +12,23 @@ function Tooltip({ children, text }) {
 
 export default function App() {
   const [activeServer, setActiveServer] = useState('info'); // Start at info page
-  const [messages, setMessages] = useState([
-    {
-      id: 1,
-      type: 'text',
-      author: 'Discord Reminders Bot',
-      isBot: true,
-      text: 'Hello! I am the exact Discord Reminders Bot simulator. Type `/` to see my commands and use the interactive options menu!',
-      time: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})
-    }
-  ]);
+  const [serverMessages, setServerMessages] = useState({
+    'reminders-bot': [
+      {
+        id: 1, type: 'text', author: 'Discord Reminders Bot', isBot: true,
+        text: 'Hello! I am the exact Discord Reminders Bot simulator. Type `/` to see my commands and use the interactive options menu!',
+        time: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})
+      }
+    ],
+    'coins-bot': [
+      {
+        id: 2, type: 'text', author: 'Coins-Bot', isBot: true,
+        text: 'Hello! I am the exact Coins-Bot simulator. Type `/` to see my commands!',
+        time: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})
+      }
+    ]
+  });
+  const messages = activeServer !== 'info' ? serverMessages[activeServer] : [];
   const [inputValue, setInputValue] = useState('');
   const [reminders, setReminders] = useState([]);
   const [stats, setStats] = useState({ completed: 5, not_completed: 1, total: 6, current_streak: 3, longest_streak: 5 });
@@ -53,50 +60,47 @@ export default function App() {
   }, [focusedOption, activeCommand]);
 
   const pushMessage = (msg) => {
-    setMessages(prev => [...prev, {
-      ...msg,
-      id: Date.now() + Math.random(),
-      time: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})
-    }]);
+    setServerMessages(prev => ({
+      ...prev,
+      [activeServer]: [...prev[activeServer], {
+        ...msg,
+        id: Date.now() + Math.random(),
+        time: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})
+      }]
+    }));
   };
 
   const handleButton = (msgId, customId) => {
     if (customId === 'confirm_clean') {
       const removedCount = reminders.length;
       setReminders([]);
-      setMessages(prev => prev.map(m => {
-        if (m.id === msgId) {
-          return {
-            ...m,
-            components: [],
-            embed: {
-              color: 'color-success',
-              title: '✅ All Reminders Removed',
-              description: `Successfully removed **${removedCount}** reminder${removedCount !== 1 ? 's' : ''}.`
-            }
-          };
-        }
-        return m;
+      setServerMessages(prev => ({
+        ...prev,
+        [activeServer]: prev[activeServer].map(m => {
+          if (m.id === msgId) {
+            return {
+              ...m, components: [], embed: { color: 'color-success', title: '✅ All Reminders Removed', description: `Successfully removed **${removedCount}** reminder${removedCount !== 1 ? 's' : ''}.` }
+            };
+          }
+          return m;
+        })
       }));
     } else if (customId === 'cancel_clean') {
-      setMessages(prev => prev.map(m => {
-        if (m.id === msgId) {
-          return {
-            ...m,
-            components: [],
-            embed: {
-              color: 'color-neutral',
-              title: '❌ Cancelled',
-              description: 'Reminder removal has been cancelled.'
-            }
-          };
-        }
-        return m;
+      setServerMessages(prev => ({
+        ...prev,
+        [activeServer]: prev[activeServer].map(m => {
+          if (m.id === msgId) {
+            return {
+              ...m, components: [], embed: { color: 'color-neutral', title: '❌ Cancelled', description: 'Reminder removal has been cancelled.' }
+            };
+          }
+          return m;
+        })
       }));
     }
   };
 
-  const commands = [
+  const remindersCommands = [
     { 
       name: 'reminder', 
       desc: 'Create a new reminder',
@@ -147,7 +151,10 @@ export default function App() {
       name: 'stats', 
       desc: 'View your reminder statistics and streak',
       options: []
-    },
+    }
+  ];
+
+  const coinsCommands = [
     { 
       name: 'add_coins', 
       desc: 'Add coins to a user (Admin only)',
@@ -180,6 +187,8 @@ export default function App() {
       ]
     }
   ];
+
+  const commands = activeServer === 'coins-bot' ? coinsCommands : remindersCommands;
 
   const processCommand = (cmdName, args) => {
     if (cmdName === 'reminder') {
@@ -579,9 +588,15 @@ export default function App() {
 
         <div className="server-separator"></div>
 
-        <Tooltip text="Discord Bots Simulator">
-          <div className={`server-icon ${activeServer === 'bot' ? 'active' : ''}`} onClick={() => setActiveServer('bot')}>
+        <Tooltip text="Discord Reminders Bot Simulator">
+          <div className={`server-icon ${activeServer === 'reminders-bot' ? 'active' : ''}`} onClick={() => setActiveServer('reminders-bot')}>
             <Bot size={28} />
+          </div>
+        </Tooltip>
+        
+        <Tooltip text="Coins-Bot Simulator">
+          <div className={`server-icon ${activeServer === 'coins-bot' ? 'active' : ''}`} onClick={() => setActiveServer('coins-bot')} style={{ backgroundColor: activeServer === 'coins-bot' ? 'var(--brand-color)' : '#2b2d31', color: '#dbdee1' }}>
+            <span style={{ fontWeight: 'bold', fontSize: '20px', fontFamily: 'Inter' }}>C</span>
           </div>
         </Tooltip>
         <div className="server-icon" style={{ backgroundColor: 'transparent', color: '#2ecc71', border: '1px dashed #2ecc71' }}>
